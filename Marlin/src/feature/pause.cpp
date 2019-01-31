@@ -45,6 +45,10 @@
   #include "runout.h"
 #endif
 
+#if ENABLED(HOST_ACTION_COMMANDS)
+  #include "host_actions.h"
+#endif
+
 #include "../lcd/ultralcd.h"
 #include "../libs/buzzer.h"
 #include "../libs/nozzle.h"
@@ -324,10 +328,15 @@ bool pause_print(const float &retract, const point_t &park_point, const float &u
 
   if (did_pause_print) return false; // already paused
 
-  #ifdef ACTION_ON_PAUSED
-    host_action_paused();
-  #elif defined(ACTION_ON_PAUSE)
-    host_action_pause();
+  #if ENABLED(HOST_ACTION_COMMANDS)
+    #ifdef ACTION_ON_PAUSED
+      host_action_paused();
+    #elif defined(ACTION_ON_PAUSE)
+      host_action_pause();
+    #endif
+    #if ENABLED(HOST_PROMPT_SUPPORT)
+      host_prompt_open(PROMPT_INFO, PSTR("Pause"));
+    #endif
   #endif
 
   if (!DEBUGGING(DRYRUN) && unload_length && thermalManager.targetTooColdToExtrude(active_extruder)) {
@@ -420,22 +429,21 @@ void show_continue_prompt(const bool is_reload) {
   serialprintPGM(is_reload ? PSTR(_PMSG(MSG_FILAMENT_CHANGE_INSERT) "\n") : PSTR(_PMSG(MSG_FILAMENT_CHANGE_WAIT) "\n"));
   #if ENABLED(HOST_PROMPT_SUPPORT)
     host_prompt_reason = PROMPT_FILAMENT_RUNOUT_CONTINUE;
-    SERIAL_ECHOLN("//action:prompt_end"); //ensure any current prompt is closed before we begin a new one
-    SERIAL_ECHOLN("//action:prompt_begin Paused");
-    SERIAL_ECHOLN("//action:prompt_button  PurgeMore");
-    #if ENABLED(FILAMENT_RUNOUT_SENSOR)
-    if (runout.filament_ran_out)
-    #else
-    if(false)
-    #endif
-      SERIAL_ECHOLN("//action:prompt_button  DisableRunout");
+    host_action_prompt_end();   // Close current prompt
+    host_action_prompt_begin(PSTR("Paused"));
+    host_action_prompt_button(PSTR("PurgeMore"));
+    if (false
+      #if ENABLED(FILAMENT_RUNOUT_SENSOR)
+        || runout.filament_ran_out
+      #endif
+    )
+      host_action_prompt_button(PSTR("DisableRunout"));
     else {
-      host_prompt_reason = PROMPT_FILAMENT_RUNOUT_TRIPPED;
-      SERIAL_ECHOLN("//action:prompt_button  Continue");
+      host_prompt_reason = PROMPT_FILAMENT_RUNOUT;
+      host_action_prompt_button(PSTR("Continue"));
     }
-    SERIAL_ECHOLN("//action:prompt_show");
+    host_action_prompt_show();
   #endif
-
 }
 
 void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep_count/*=0*/ DXC_ARGS) {
@@ -480,21 +488,16 @@ void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep
         lcd_advanced_pause_show_message(ADVANCED_PAUSE_MESSAGE_HEAT);
       #endif
       SERIAL_ECHO_MSG(_PMSG(MSG_FILAMENT_CHANGE_HEAT));
+
       #if ENABLED(HOST_PROMPT_SUPPORT)
-        host_prompt_reason = PROMPT_FILAMENT_RUNOUT_REHEAT;
-        SERIAL_ECHOLN("//action:prompt_end"); //ensure any current prompt is closed before we begin a new one
-        SERIAL_ECHOLN("//action:prompt_begin HeaterTimout");
-        SERIAL_ECHOLN("//action:prompt_button  Reheat");
-        SERIAL_ECHOLN("//action:prompt_show");
+        host_prompt_do(PROMPT_FILAMENT_RUNOUT_REHEAT, PSTR("HeaterTimeout"), PSTR("Reheat"));
       #endif
+
       // Wait for LCD click or M108
       while (wait_for_user) idle(true);
 
       #if ENABLED(HOST_PROMPT_SUPPORT)
-        host_prompt_reason = PROMPT_FILAMENT_RUNOUT_REHEAT;
-        SERIAL_ECHOLN("//action:prompt_end"); //ensure any current prompt is closed before we begin a new one
-        SERIAL_ECHOLN("//action:prompt_begin Reheating");
-        SERIAL_ECHOLN("//action:prompt_show");
+        host_prompt_do(PROMPT_FILAMENT_RUNOUT_REHEAT, PSTR("Reheating"));
       #endif
 
       // Re-enable the heaters if they timed out
@@ -608,6 +611,10 @@ void resume_print(const float &slow_load_length/*=0*/, const float &fast_load_le
   #endif
 
   --did_pause_print;
+
+  #if ENABLED(HOST_PROMPT_SUPPORT)
+    host_prompt_open(PROMPT_INFO, PSTR("Resume"));
+  #endif
 
   #if ENABLED(SDSUPPORT)
     if (did_pause_print) {

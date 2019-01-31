@@ -40,9 +40,13 @@
 
 class FilamentMonitorBase {
   public:
-    static bool enabled;
-    static bool filament_ran_out;
-    static bool host_handling;
+    static bool enabled, filament_ran_out;
+
+    #if ENABLED(HOST_ACTION_COMMANDS)
+      static bool host_handling;
+    #else
+      constexpr static bool host_handling = false;
+    #endif
 };
 
 template<class RESPONSE_T, class SENSOR_T>
@@ -93,7 +97,7 @@ class TFilamentMonitor : public FilamentMonitorBase {
         #endif
         if (ran_out) {
           filament_ran_out = true;
-          event_filament_runout(false);
+          event_filament_runout();
           planner.synchronize();
         }
       }
