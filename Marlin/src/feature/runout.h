@@ -309,7 +309,13 @@ class FilamentSensorBase {
       }
 
       static inline void block_completed(const block_t* const b) {
-        if (b->steps[X_AXIS] || b->steps[Y_AXIS] || b->steps[Z_AXIS]) {
+        if (b->steps[X_AXIS] || b->steps[Y_AXIS] || b->steps[Z_AXIS] ||
+        #if ENABLED(ADVANCED_PAUSE_FEATURE) 
+          did_pause_print //To allow pause purge move to re-trigger runout state
+        #else
+          false
+        #endif
+          ) {
           // Only trigger on extrusion with XYZ movement to allow filament change and retract/recover.
           const uint8_t e = b->extruder;
           const int32_t steps = b->steps[E_AXIS];

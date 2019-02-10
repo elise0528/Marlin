@@ -159,7 +159,7 @@ void menu_main() {
     #endif // !HAS_ENCODER_WHEEL && SDSUPPORT
 
     #if ENABLED(SDSUPPORT) || ENABLED(HOST_ACTION_COMMANDS)
-      #if ENABLED(SDSUPPORT)
+      #if DISABLED(HOST_ACTION_COMMANDS)
         if (card.isFileOpen() && card.isPaused())
       #endif
           MENU_ITEM(function, MSG_RESUME_PRINT, lcd_resume);
