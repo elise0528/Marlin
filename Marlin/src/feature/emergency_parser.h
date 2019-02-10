@@ -66,7 +66,7 @@ public:
   static bool killed_by_M112;
 
   #if ENABLED(HOST_PROMPT_SUPPORT)
-    static PromptReason M876_reason;
+    static uint8_t M876_reason;
   #endif
 
   EmergencyParser() { enable(); }
@@ -158,7 +158,7 @@ public:
           case '6': case '7': case '8':
           case '9':
             state = EP_M876SN;
-            M876_reason = (PromptReason)(c - '0');
+            M876_reason = (uint8_t)(c - '0');
             break;
         }
         break;

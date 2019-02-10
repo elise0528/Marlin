@@ -26,6 +26,8 @@
 
 #include "host_actions.h"
 
+//#define DEBUG_HOST_ACTIONS
+
 #if ENABLED(ADVANCED_PAUSE_FEATURE)
   #include "pause.h"
   #include "../gcode/queue.h"
@@ -96,43 +98,58 @@ void host_action(const char * const pstr, const bool eol) {
     SERIAL_EOL();
   }
 
-  void host_response_handler(const PromptReason response) {
-    switch (host_prompt_reason) {
+  void host_response_handler(const uint8_t response) {
+    #ifdef DEBUG_HOST_ACTIONS
+      SERIAL_ECHOLNPAIR("M86 Handle Reason: ", host_prompt_reason);
+      SERIAL_ECHOLNPAIR("M86 Handle Response: ", response);
+    #endif
+    const char *msg = PSTR("UNKNOWN STATE");
+    const PromptReason hpr = host_prompt_reason;
+    host_prompt_reason = PROMPT_NOT_DEFINED;
+    switch (hpr) {
       case PROMPT_FILAMENT_RUNOUT:
-        if (response == 0)
+        msg = PSTR("FILAMENT_RUNOUT");
+        if (response == 0) {
           advanced_pause_menu_response = ADVANCED_PAUSE_RESPONSE_EXTRUDE_MORE;
+          host_action_prompt_end();   // Close current prompt
+          host_action_prompt_begin(PSTR("Paused"));
+          host_action_prompt_button(PSTR("Purge More"));
+          if (false
+            #if ENABLED(FILAMENT_RUNOUT_SENSOR)
+              || runout.filament_ran_out
+            #endif
+          )
+            host_action_prompt_button(PSTR("DisableRunout"));
+          else {
+            host_prompt_reason = PROMPT_FILAMENT_RUNOUT;
+            host_action_prompt_button(PSTR("Continue"));
+          }
+          host_action_prompt_show();
+        }
         else if (response == 1) {
           #if ENABLED(FILAMENT_RUNOUT_SENSOR)
-            runout.enabled = false;
-            runout.reset();
+            if (runout.filament_ran_out) {
+              runout.enabled = false;
+              runout.reset();
+            }
           #endif
           advanced_pause_menu_response = ADVANCED_PAUSE_RESPONSE_RESUME_PRINT;
         }
-        say_m876_response(PSTR("FILAMENT_RUNOUT"));
         break;
-      case PROMPT_FILAMENT_RUNOUT_CONTINUE:
-        if (response == 0)
-          advanced_pause_menu_response = ADVANCED_PAUSE_RESPONSE_EXTRUDE_MORE;
-        else if (response == 1)
-          advanced_pause_menu_response = ADVANCED_PAUSE_RESPONSE_RESUME_PRINT;
-        say_m876_response(PSTR("FILAMENT_RUNOUT_CONTINUE"));
-        break;
-      case PROMPT_FILAMENT_RUNOUT_REHEAT:
+      case PROMPT_USER_CONTINUE:
+        msg = PSTR("FILAMENT_RUNOUT_CONTINUE");
         wait_for_user = false;
-        say_m876_response(PSTR("FILAMENT_RUNOUT_REHEAT"));
         break;
       case PROMPT_PAUSE_RESUME:
+        msg = PSTR("LCD_PAUSE_RESUME");
         enqueue_and_echo_commands_P(PSTR("M24"));
-        say_m876_response(PSTR("LCD_PAUSE_RESUME"));
         break;
       case PROMPT_INFO:
-        say_m876_response(PSTR("GCODE_INFO"));
+        msg = PSTR("GCODE_INFO");
         break;
-      default:
-        say_m876_response(PSTR("UNKNOWN STATE"));
-        break;
+      default: break;
     }
-    host_prompt_reason = PROMPT_NOT_DEFINED;
+    say_m876_response(msg);
   }
 
 #endif // HOST_PROMPT_SUPPORT

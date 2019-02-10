@@ -322,6 +322,11 @@ void disable_all_steppers() {
 #if ENABLED(FILAMENT_RUNOUT_SENSOR)
 
   void event_filament_runout() {
+
+    #if ENABLED(ADVANCED_PAUSE_FEATURE)
+      if (did_pause_print) return;  // Action already in progress. Purge triggered repeated runout.
+    #endif
+
     #if ENABLED(EXTENSIBLE_UI)
       ExtUI::onFilamentRunout(ExtUI::getActiveTool());
     #endif

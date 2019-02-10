@@ -158,6 +158,20 @@ bool load_filament(const float &slow_load_length/*=0*/, const float &fast_load_l
 
     KEEPALIVE_STATE(PAUSED_FOR_USER);
     wait_for_user = true;    // LCD click or M108 will clear this
+    #if ENABLED(HOST_PROMPT_SUPPORT)
+      const char tool = '0'
+        #if NUM_RUNOUT_SENSORS > 1
+          + active_extruder
+        #endif
+      ;
+      host_prompt_reason = PROMPT_USER_CONTINUE;
+      host_action_prompt_end();
+      host_action_prompt_begin(PSTR("Load Filament T"), false);
+      SERIAL_CHAR(tool);
+      SERIAL_EOL();
+      host_action_prompt_button(PSTR("Continue"));
+      host_action_prompt_show();
+    #endif
     while (wait_for_user) {
       #if HAS_BUZZER
         filament_change_beep(max_beep_count);
@@ -210,6 +224,9 @@ bool load_filament(const float &slow_load_length/*=0*/, const float &fast_load_l
     #endif
 
     wait_for_user = true;
+    #if ENABLED(HOST_PROMPT_SUPPORT)
+      host_prompt_do(PROMPT_USER_CONTINUE, PSTR("Continuous Purge Running..."), PSTR("Continue"));
+    #endif
     for (float purge_count = purge_length; purge_count > 0 && wait_for_user; --purge_count)
       do_pause_e_move(1, ADVANCED_PAUSE_PURGE_FEEDRATE);
     wait_for_user = false;
@@ -228,6 +245,24 @@ bool load_filament(const float &slow_load_length/*=0*/, const float &fast_load_l
       }
 
       // Show "Purge More" / "Resume" menu and wait for reply
+      #if ENABLED(HOST_PROMPT_SUPPORT)
+        host_prompt_reason = PROMPT_FILAMENT_RUNOUT;
+        host_action_prompt_end();   // Close current prompt
+        host_action_prompt_begin(PSTR("Paused"));
+        host_action_prompt_button(PSTR("PurgeMore"));
+        if (false
+          #if ENABLED(FILAMENT_RUNOUT_SENSOR)
+            || runout.filament_ran_out
+          #endif
+        )
+          host_action_prompt_button(PSTR("DisableRunout"));
+        else {
+          host_prompt_reason = PROMPT_FILAMENT_RUNOUT;
+          host_action_prompt_button(PSTR("Continue"));
+        }
+        host_action_prompt_show();
+      #endif
+
       #if HAS_LCD_MENU
         if (show_lcd) {
           KEEPALIVE_STATE(PAUSED_FOR_USER);
@@ -427,23 +462,6 @@ void show_continue_prompt(const bool is_reload) {
   #endif
   SERIAL_ECHO_START();
   serialprintPGM(is_reload ? PSTR(_PMSG(MSG_FILAMENT_CHANGE_INSERT) "\n") : PSTR(_PMSG(MSG_FILAMENT_CHANGE_WAIT) "\n"));
-  #if ENABLED(HOST_PROMPT_SUPPORT)
-    host_prompt_reason = PROMPT_FILAMENT_RUNOUT_CONTINUE;
-    host_action_prompt_end();   // Close current prompt
-    host_action_prompt_begin(PSTR("Paused"));
-    host_action_prompt_button(PSTR("PurgeMore"));
-    if (false
-      #if ENABLED(FILAMENT_RUNOUT_SENSOR)
-        || runout.filament_ran_out
-      #endif
-    )
-      host_action_prompt_button(PSTR("DisableRunout"));
-    else {
-      host_prompt_reason = PROMPT_FILAMENT_RUNOUT;
-      host_action_prompt_button(PSTR("Continue"));
-    }
-    host_action_prompt_show();
-  #endif
 }
 
 void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep_count/*=0*/ DXC_ARGS) {
@@ -471,7 +489,9 @@ void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep
   // Wait for filament insert by user and press button
   KEEPALIVE_STATE(PAUSED_FOR_USER);
   wait_for_user = true;    // LCD click or M108 will clear this
-
+  #if ENABLED(HOST_PROMPT_SUPPORT)
+    host_prompt_do(PROMPT_USER_CONTINUE, PSTR("Nozzle Parked"), PSTR("Continue"));
+  #endif
   while (wait_for_user) {
     #if HAS_BUZZER
       filament_change_beep(max_beep_count);
@@ -490,14 +510,14 @@ void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep
       SERIAL_ECHO_MSG(_PMSG(MSG_FILAMENT_CHANGE_HEAT));
 
       #if ENABLED(HOST_PROMPT_SUPPORT)
-        host_prompt_do(PROMPT_FILAMENT_RUNOUT_REHEAT, PSTR("HeaterTimeout"), PSTR("Reheat"));
+        host_prompt_do(PROMPT_USER_CONTINUE, PSTR("HeaterTimeout"), PSTR("Reheat"));
       #endif
 
       // Wait for LCD click or M108
       while (wait_for_user) idle(true);
 
       #if ENABLED(HOST_PROMPT_SUPPORT)
-        host_prompt_do(PROMPT_FILAMENT_RUNOUT_REHEAT, PSTR("Reheating"));
+        host_prompt_do(PROMPT_USER_CONTINUE, PSTR("Reheating"));
       #endif
 
       // Re-enable the heaters if they timed out
@@ -514,7 +534,9 @@ void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep
 
       HOTEND_LOOP()
         thermalManager.start_heater_idle_timer(e, nozzle_timeout);
-
+      #if ENABLED(HOST_PROMPT_SUPPORT)
+        host_prompt_do(PROMPT_USER_CONTINUE, PSTR("Reheat Done"), PSTR("Continue"));
+      #endif
       wait_for_user = true;
       nozzle_timed_out = false;
 
